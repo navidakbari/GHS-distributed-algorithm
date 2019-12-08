@@ -1,4 +1,5 @@
 package Components;
+import Events.ChangeRootMessage;
 import Events.InitMessage;
 import Events.ReportMessage;
 import Events.JoinMessage;
@@ -18,44 +19,63 @@ import static java.nio.file.StandardOpenOption.WRITE;
 
 
 public class Node extends ComponentDefinition {
-    Positive<EdgePort> recievePort = positive(EdgePort.class);
-    Negative<EdgePort> sendPort = negative(EdgePort.class);
+    public Positive<EdgePort> recievePort = positive(EdgePort.class);
+    public Negative<EdgePort> sendPort = negative(EdgePort.class);
 
 
-    public int coordinator;
-    public int name;
+    public String coordinator;
+    public String fragmentName;
     public int level = 0;
-    public String children;
-    public String nodeName;
-    public String parentName;
+    public String childrenName = null;
+    public String nodeName = null;
+    public String parentName = null;
     public int dist = 10000;
     public HashMap<String, Integer> neighbours = new HashMap<>();
     public ArrayList<TableRow> route_table = new ArrayList<>();
 
-    Handler joinHandler = new Handler<JoinMessage>(){
+    public Handler joinHandler = new Handler<JoinMessage>(){
         @Override
         public void handle(JoinMessage event) {
             if (nodeName.equalsIgnoreCase(event.dst)) {
                 if(Collections.min(neighbours.values()) == event.edge_weight){
-                    level++;
-                    System.out.println(nodeName + " recieved message : src " + event.src + " dst " + event.dst + " Level: " + level);
+
+                    System.out.println("In joinHandler -> " + nodeName + " received message : src " + event.src + " dst " + event.dst + " Level: " + level);
+
                     if(event.dst.compareTo(event.src) > 0){
-
-                    }
-//                trigger(new ReportMessage(nodeName, parentName, dist, route_table), sendPort);
-
-                    System.out.println(String.format("node %s parent is: %s", nodeName, parentName));
-                    for (Map.Entry<String, Integer> entry : neighbours.entrySet()) {
-                        if (!entry.getKey().equalsIgnoreCase(parentName)) {
-    //                        trigger(new RoutingMessage(nodeName,entry.getKey() ,dist + entry.getValue(),entry.getValue()),sendPort);
+                        coordinator = event.dst;
+                        childrenName = event.src;
+                        fragmentName = event.dst;
+                        level++;
+                        trigger(new ChangeRootMessage(nodeName, childrenName, coordinator, level, fragmentName), sendPort);
+                        if(parentName != null){
+                            trigger(new ChangeRootMessage(nodeName, parentName, coordinator, level, fragmentName), sendPort);
                         }
                     }
+
                 }
             }
         }
     };
 
-    Handler reportHandler = new Handler<ReportMessage>() {
+    public Handler changeRootHandler = new Handler<ChangeRootMessage>() {
+        @Override
+        public void handle(ChangeRootMessage event) {
+            if (nodeName.equalsIgnoreCase(event.dst)) {
+                System.out.println("In changeRootHandler -> " + nodeName + " received message : src " + event.src + " dst " + event.dst + " Level: " + event.level);
+                parentName = event.src;
+                level = event.level;
+                coordinator = event.coordinator;
+                fragmentName = event.fragmentName;
+                System.out.println("In changeRootHandler -> " + nodeName + " has: parentName " + parentName + " level " + level + " coordinator " + coordinator + " fragmentName " + fragmentName);
+                if(childrenName != null){
+                    trigger(new ChangeRootMessage(nodeName, childrenName, coordinator, level, fragmentName), sendPort);
+
+                }
+            }
+        }
+    };
+
+    public Handler reportHandler = new Handler<ReportMessage>() {
         @Override
         public void handle(ReportMessage event) {
             if (nodeName.equalsIgnoreCase(event.dst))
@@ -91,16 +111,14 @@ public class Node extends ComponentDefinition {
         }
     };
 
-    Handler startHandler = new Handler<Start>() {
+    public Handler startHandler = new Handler<Start>() {
         @Override
         public void handle(Start event) {
 
-            System.out.println("hello" + nodeName);
             int potentially_lwoe = Collections.min(neighbours.values());
-            System.out.println(potentially_lwoe);
+
             for(Map.Entry<String, Integer> entry: neighbours.entrySet()){
                 if(entry.getValue().equals(potentially_lwoe)){
-                    System.out.println(entry.getKey());
                     trigger(new JoinMessage(nodeName, entry.getKey() , entry.getValue()), sendPort);
                     break;
                 }
@@ -111,10 +129,13 @@ public class Node extends ComponentDefinition {
 
     public Node(InitMessage initMessage) {
         nodeName = initMessage.nodeName;
-        System.out.println("initNode :" + initMessage.nodeName);
+        System.out.println("initNode: " + initMessage.nodeName);
+        this.fragmentName = initMessage.nodeName;
+        this.coordinator = initMessage.nodeName;
         this.neighbours = initMessage.neighbours;
         subscribe(startHandler, control);
 //        subscribe(reportHandler,recievePort);
         subscribe(joinHandler,recievePort);
+        subscribe(changeRootHandler, recievePort);
     }
 }
