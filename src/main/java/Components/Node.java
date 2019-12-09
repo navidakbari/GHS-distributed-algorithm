@@ -115,7 +115,36 @@ public class Node extends ComponentDefinition {
                 }
 
                 int potentially_lwoe = Collections.min(basicEdge.values());
-                System.out.println(potentially_lwoe);
+
+                for(Map.Entry<String, Integer> entry: basicEdge.entrySet()){
+                    if(entry.getValue().equals(potentially_lwoe)){
+                        trigger(new TestMessage(nodeName, entry.getKey() , entry.getValue(), coordinator, level, fragmentName), sendPort);
+                        break;
+                    }
+                }
+//                trigger(new JoinMessage(nodeName, parentName , potentially_lwoe, coordinator, level, fragmentName), sendPort);
+
+            }
+        }
+    };
+
+    public Handler testHandler = new Handler<TestMessage>() {
+        @Override
+        public void handle(TestMessage event){
+            if (nodeName.equalsIgnoreCase(event.dst)) {
+                System.out.println("In TestHandler -> " + nodeName +
+                        " received message : src " + event.src +
+                        " dst " + event.dst +
+                        " Level " + event.level +
+                        " Coordinator " + event.coordinator +
+                        " fragmentName " + event.fragmentName);
+                if(event.fragmentName == fragmentName){
+
+                }else if(event.level < level){
+
+                }else{
+
+                }
 
 //                trigger(new JoinMessage(nodeName, parentName , potentially_lwoe, coordinator, level, fragmentName), sendPort);
 
@@ -154,5 +183,6 @@ public class Node extends ComponentDefinition {
         subscribe(joinHandler,recievePort);
         subscribe(changeRootHandler, recievePort);
         subscribe(initiateHandler, recievePort);
+        subscribe(testHandler, recievePort);
     }
 }
